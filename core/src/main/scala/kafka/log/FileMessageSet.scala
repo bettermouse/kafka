@@ -43,6 +43,7 @@ import scala.collection.mutable.ArrayBuffer
  * @param isSlice Should the start and end parameters be used for slicing?
  */
 @nonthreadsafe
+//对应于磁盘上的一个日志文件
 class FileMessageSet private[kafka](@volatile var file: File,
                                     private[log] val channel: FileChannel,
                                     private[log] val start: Int,
@@ -292,6 +293,7 @@ class FileMessageSet private[kafka](@volatile var file: File,
 
   /**
    * Append these messages to the message set
+    * 添加消息到message set
    */
   def append(messages: ByteBufferMessageSet) {
     val written = messages.writeFullyTo(channel)

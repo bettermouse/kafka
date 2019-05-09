@@ -103,6 +103,7 @@ public class Compressor {
         if (type != CompressionType.NONE) {
             // for compressed records, leave space for the header and the shallow message metadata
             // and move the starting position to the value payload offset
+           //对于压缩的消息,
             buffer.position(initPos + Records.LOG_OVERHEAD + Record.RECORD_OVERHEAD);
         }
 

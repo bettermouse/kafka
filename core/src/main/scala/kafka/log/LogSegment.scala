@@ -32,8 +32,14 @@ import java.io.{IOException, File}
  * segment has a base offset which is an offset <= the least offset of any message in this segment and > any offset in
  * any previous segment.
  *
+   * 日志的段,每个段有两个部分.一个log和index.log是FileMessageSet,它包含真实的信息.index是一个OffsetIndex.它映射
+   * 逻辑offsets到物理文件的位置.每个segment有一个基础offset.它是一个offset <=此段中任何消息的最小偏移量且>
+   *   任何在先前segment的offset
+   *
  * A segment with a base offset of [base_offset] would be stored in two files, a [base_offset].index and a [base_offset].log file.
  *
+   * 一个base offset为[base_offset]的段将被存在两个文件,一个是 [base_offset].index,[base_offset].log 文件.
+   *
  * @param log The message set containing log entries
  * @param index The offset index
  * @param baseOffset A lower bound on the offsets in this segment
@@ -41,16 +47,18 @@ import java.io.{IOException, File}
  * @param time The time instance
  */
 @nonthreadsafe
-class LogSegment(val log: FileMessageSet,
-                 val index: OffsetIndex,
-                 val baseOffset: Long,
-                 val indexIntervalBytes: Int,
+class LogSegment(val log: FileMessageSet,//操作对应日志文件
+                 val index: OffsetIndex,//操作对应索引文件的OffsetIndex
+                 val baseOffset: Long,//LogSegment第一条消息的offset
+                 val indexIntervalBytes: Int,//索引中条目之间的近似字节数??
                  val rollJitterMs: Long,
                  time: Time) extends Logging {
 
+   //标识logSegment对象创建时间,当调用truncateTo()将整个日志文件清空时,会将此字段重置为当前时间
   var created = time.milliseconds
 
-  /* the number of bytes since we last added an entry in the offset index */
+  /* the number of bytes since we last added an entry in the offset index
+  * 从我们上次添加一个entry到offset index 的字节数*/
   private var bytesSinceLastIndexEntry = 0
 
   def this(dir: File, startOffset: Long, indexIntervalBytes: Int, maxIndexSize: Int, rollJitterMs: Long, time: Time, fileAlreadyExists: Boolean = false, initFileSize: Int = 0, preallocate: Boolean = false) =
@@ -68,6 +76,8 @@ class LogSegment(val log: FileMessageSet,
    * Append the given messages starting with the given offset. Add
    * an entry to the index if needed.
    *
+    *
+    *
    * It is assumed this method is being called from within a lock.
    *
    * @param offset The first offset in the message set.

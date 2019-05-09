@@ -61,6 +61,8 @@ case class LogAppendInfo(var firstOffset: Long,
 
 /**
  * An append-only log for storing messages.
+  *
+  * 一个只添加的log用来存储消息
  *
  * The log is a sequence of LogSegments, each with a base offset denoting the first message in the segment.
  *
