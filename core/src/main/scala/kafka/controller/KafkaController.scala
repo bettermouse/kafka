@@ -45,7 +45,7 @@ import java.util.concurrent.locks.ReentrantLock
 
 import kafka.server._
 import kafka.common.TopicAndPartition
-
+//维护了controller使用到的上下文信息
 class ControllerContext(val zkUtils: ZkUtils,
                         val zkSessionTimeout: Int) {
   var controllerChannelManager: ControllerChannelManager = null
@@ -155,7 +155,7 @@ object KafkaController extends Logging {
     }
   }
 }
-
+//组织并封装了其他组件,对外提供API接口
 class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerState: BrokerState, time: Time, metrics: Metrics, threadNamePrefix: Option[String] = None) extends Logging with KafkaMetricsGroup {
   this.logIdent = "[Controller " + config.brokerId + "]: "
   private var isRunning = true

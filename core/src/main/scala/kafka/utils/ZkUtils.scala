@@ -41,7 +41,9 @@ import scala.collection._
 
 object ZkUtils {
   val ConsumersPath = "/consumers"
+  //记录了集群中可用的broker的id
   val BrokerIdsPath = "/brokers/ids"
+  ///brokers/topics/[topic]/partitions/[partition_id]/state
   val BrokerTopicsPath = "/brokers/topics"
   val ControllerPath = "/controller"
   val ControllerEpochPath = "/controller_epoch"

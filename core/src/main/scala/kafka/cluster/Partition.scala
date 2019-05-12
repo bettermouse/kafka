@@ -38,20 +38,26 @@ import org.apache.kafka.common.requests.PartitionState
 
 /**
  * Data structure that represents a topic partition. The leader maintains the AR, ISR, CUR, RAR
+  * 代表一个分区partition的数据结构
+  * leader维持  AR, ISR, CUR, RAR
  */
-class Partition(val topic: String,
-                val partitionId: Int,
+class Partition(val topic: String,  //topic名称
+                val partitionId: Int, //分区id
                 time: Time,
                 replicaManager: ReplicaManager) extends Logging with KafkaMetricsGroup {
-  private val localBrokerId = replicaManager.config.brokerId
+  private val localBrokerId = replicaManager.config.brokerId  //本地blockId
   private val logManager = replicaManager.logManager
   private val zkUtils = replicaManager.zkUtils
+  //AR
   private val assignedReplicaMap = new Pool[Int, Replica]
   // The read lock is only required when multiple reads are executed and needs to be in a consistent manner
   private val leaderIsrUpdateLock = new ReentrantReadWriteLock()
   private var zkVersion: Int = LeaderAndIsr.initialZKVersion
+  //leader副本年代信息
   @volatile private var leaderEpoch: Int = LeaderAndIsr.initialLeaderEpoch - 1
+  //该分区leader副本ID
   @volatile var leaderReplicaIdOpt: Option[Int] = None
+  //ISR集合,是AR的子集
   @volatile var inSyncReplicas: Set[Replica] = Set.empty[Replica]
 
   /* Epoch of the controller that last changed the leader. This needs to be initialized correctly upon broker startup.
@@ -82,15 +88,19 @@ class Partition(val topic: String,
         false
     }
   }
-
+  //
   def getOrCreateReplica(replicaId: Int = localBrokerId): Replica = {
+    //从assignedReplicaMap中查找replica对象
     val replicaOpt = getReplica(replicaId)
     replicaOpt match {
       case Some(replica) => replica
       case None =>
+        //没有找到,如果是本地
         if (isReplicaLocal(replicaId)) {
+          //获取配置信息,ZK中的配置信息会覆盖默认的配置
           val config = LogConfig.fromProps(logManager.defaultConfig.originals,
                                            AdminUtils.fetchEntityConfig(zkUtils, ConfigType.Topic, topic))
+          //创建ReplicaLocal,如果LOG已经存在,则直接返回.参考LOGMANAGER小节
           val log = logManager.createLog(TopicAndPartition(topic, partitionId), config)
           val checkpoint = replicaManager.highWatermarkCheckpoints(log.dir.getParentFile.getAbsolutePath)
           val offsetMap = checkpoint.read

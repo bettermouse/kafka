@@ -77,8 +77,10 @@ case class LogAppendInfo(var firstOffset: Long,
  *
  */
 @threadsafe
-class Log(val dir: File,
+class Log(val dir: File, //log对应的磁盘目录.此目录下存放了每个log segment对应的日志文件和索引文件
           @volatile var config: LogConfig,
+          //指定恢复操作的起始offset,recoveryPonit之前的message已经被刷新到磁盘上持久存储了
+         //而其后的消息则不一定.出现宕机时可能会丢失.所以只需要恢复recoveryPonit之后的消息即可
           @volatile var recoveryPoint: Long = 0L,
           scheduler: Scheduler,
           time: Time = SystemTime) extends Logging with KafkaMetricsGroup {
@@ -98,11 +100,13 @@ class Log(val dir: File,
       0
   }
 
-  /* the actual segments of the log */
+  /* the actual segments of the log
+  * 日志的实际部分*/
   private val segments: ConcurrentNavigableMap[java.lang.Long, LogSegment] = new ConcurrentSkipListMap[java.lang.Long, LogSegment]
   loadSegments()
 
-  /* Calculate the offset of the next message */
+  /* Calculate the offset of the next message
+   * 计算下一条消息的offset */
   @volatile var nextOffsetMetadata = new LogOffsetMetadata(activeSegment.nextOffset(), activeSegment.baseOffset, activeSegment.size.toInt)
 
   val topicAndPartition: TopicAndPartition = Log.parseTopicPartitionName(dir)
@@ -318,6 +322,8 @@ class Log(val dir: File,
    *
    * @return Information about the appended messages including the first and last offset.
    */
+  //kafka服务端在处理生产者发过来的produceRequest时,会将消息解析成ByteBufferMessageSet.并最终调用
+  //Log append来追加消息
   def append(messages: ByteBufferMessageSet, assignOffsets: Boolean = true): LogAppendInfo = {
     val appendInfo = analyzeAndValidateMessageSet(messages)
 

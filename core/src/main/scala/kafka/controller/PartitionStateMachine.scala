@@ -409,6 +409,7 @@ class PartitionStateMachine(controller: KafkaController) extends Logging {
 
   /**
    * This is the zookeeper listener that triggers all the state transitions for a partition
+    * 这是zookeeper侦听器，它触发分区的所有状态转换
    */
   class TopicChangeListener extends IZkChildListener with Logging {
     this.logIdent = "[TopicChangeListener on Controller " + controller.config.brokerId + "]: "
@@ -418,15 +419,19 @@ class PartitionStateMachine(controller: KafkaController) extends Logging {
       inLock(controllerContext.controllerLock) {
         if (hasStarted.get) {
           try {
+            //获取 /brokers/topics 下的子节点集合
             val currentChildren = {
               import JavaConversions._
               debug("Topic change listener fired for path %s with children %s".format(parentPath, children.mkString(",")))
               (children: Buffer[String]).toSet
             }
+            //过滤,得到新添加的topic
             val newTopics = currentChildren -- controllerContext.allTopics
+            //过滤,得到删除的topic
             val deletedTopics = controllerContext.allTopics -- currentChildren
+            //更新 controllerContext的allTopics
             controllerContext.allTopics = currentChildren
-
+            //获取新增topic的分区信息及AR集合记录
             val addedPartitionReplicaAssignment = zkUtils.getReplicaAssignmentForTopics(newTopics.toSeq)
             controllerContext.partitionReplicaAssignment = controllerContext.partitionReplicaAssignment.filter(p =>
               !deletedTopics.contains(p._1.topic))
@@ -434,6 +439,7 @@ class PartitionStateMachine(controller: KafkaController) extends Logging {
             info("New topics: [%s], deleted topics: [%s], new partition replica assignment [%s]".format(newTopics,
               deletedTopics, addedPartitionReplicaAssignment))
             if(newTopics.size > 0)
+              //调用 onNewTopicCreation处理新增的topic
               controller.onNewTopicCreation(newTopics, addedPartitionReplicaAssignment.keySet.toSet)
           } catch {
             case e: Throwable => error("Error while handling new topic", e )

@@ -36,8 +36,9 @@ import org.apache.kafka.common.{Node, TopicPartition}
 import scala.collection.JavaConverters._
 import scala.collection.{Set, mutable}
 import scala.collection.mutable.HashMap
-
+//维护了controller leader与集群中其他broker之间的网络连接,是管理整个集群的基础
 class ControllerChannelManager(controllerContext: ControllerContext, config: KafkaConfig, time: Time, metrics: Metrics, threadNamePrefix: Option[String] = None) extends Logging {
+  //ControllerBrokerStateInfo表示与一个broker连接的各种信息
   protected val brokerStateInfo = new HashMap[Int, ControllerBrokerStateInfo]
   private val brokerLock = new Object
   this.logIdent = "[Channel manager on controller " + config.brokerId + "]: "
@@ -164,17 +165,19 @@ class RequestSendThread(val controllerId: Int,
   private val lock = new Object()
   private val stateChangeLogger = KafkaController.stateChangeLogger
   private val socketTimeoutMs = config.controllerSocketTimeoutMs
-
+  //循环执行doWork方法
   override def doWork(): Unit = {
 
     def backoff(): Unit = CoreUtils.swallowTrace(Thread.sleep(300))
-
+    //获取队列中的 QueueItem
     val QueueItem(apiKey, apiVersion, request, callback) = queue.take()
     import NetworkClientBlockingOps._
     var clientResponse: ClientResponse = null
     try {
       lock synchronized {
         var isSendSuccessful = false
+        //当broker宕机后,会触发zookeeper的监听器调用removeBroker()方法将当
+        //线程停止,在停止前会一直尝试重试
         while (isRunning.get() && !isSendSuccessful) {
           // if a broker goes down for a long time, then at some point the controller's zookeeper listener will trigger a
           // removeBroker which will invoke shutdown() on this thread. At that point, we will stop retrying.
@@ -443,10 +446,10 @@ class ControllerBrokerRequestBatch(controller: KafkaController) extends  Logging
   }
 }
 
-case class ControllerBrokerStateInfo(networkClient: NetworkClient,
-                                     brokerNode: Node,
+case class ControllerBrokerStateInfo(networkClient: NetworkClient, //维护controller与brokerce通信的网络连接
+                                     brokerNode: Node, //维护对应的broke的位置信息
                                      messageQueue: BlockingQueue[QueueItem],
-                                     requestSendThread: RequestSendThread)
+                                     requestSendThread: RequestSendThread) //用于发送请求的线程
 
 case class StopReplicaRequestInfo(replica: PartitionAndReplica, deletePartition: Boolean, callback: AbstractRequestResponse => Unit = null)
 

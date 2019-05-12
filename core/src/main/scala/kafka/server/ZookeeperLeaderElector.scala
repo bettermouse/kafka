@@ -31,6 +31,7 @@ import org.apache.kafka.common.security.JaasUtils
  * leader is dead, this class will handle automatic re-election and if it succeeds, it invokes the leader state change
  * callback
  */
+//主要用于controller leader的选举
 class ZookeeperLeaderElector(controllerContext: ControllerContext,
                              electionPath: String,
                              onBecomingLeader: () => Unit,

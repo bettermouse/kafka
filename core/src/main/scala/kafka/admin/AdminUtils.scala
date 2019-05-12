@@ -517,6 +517,7 @@ object AdminUtils extends Logging {
 
   /**
    * Read the entity (topic or client) config (if any) from zk
+    *从zk中读取配置信息
    */
   def fetchEntityConfig(zkUtils: ZkUtils, entityType: String, entity: String): Properties = {
     val str: String = zkUtils.zkClient.readData(getEntityConfigPath(entityType, entity), true)

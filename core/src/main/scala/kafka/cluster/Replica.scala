@@ -25,9 +25,10 @@ import kafka.common.KafkaException
 import java.util.concurrent.atomic.AtomicLong
 
 class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
-              val partition: Partition,
+              val partition: Partition, //此副本对应的消息
               time: Time = SystemTime,
               initialHighWatermarkValue: Long = 0L,
+              //本地副本对应的log对象
               val log: Option[Log] = None) extends Logging {
   // the high watermark offset value, in non-leader replicas only its message offsets are kept
   //
@@ -39,39 +40,46 @@ class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
   val topic = partition.topic
   val partitionId = partition.partitionId
 
+  //指定了log表示是本地副本
   def isLocal: Boolean = {
     log match {
       case Some(l) => true
       case None => false
     }
   }
-
+ //follower最后一次赶上leader的时间戳
   private[this] val lastCaughtUpTimeMsUnderlying = new AtomicLong(time.milliseconds)
 
   def lastCaughtUpTimeMs = lastCaughtUpTimeMsUnderlying.get()
 
+  //更新读取的结果
   def updateLogReadResult(logReadResult : LogReadResult) {
     logEndOffset = logReadResult.info.fetchOffsetMetadata
 
     /* If the request read up to the log end offset snapshot when the read was initiated,
      * set the lastCaughtUpTimeMsUnderlying to the current time.
      * This means that the replica is fully caught up.
+     *
      */
     if(logReadResult.isReadFromLogEnd) {
+      //此时 follower副本的同步进度完全追赶上.
       lastCaughtUpTimeMsUnderlying.set(time.milliseconds)
     }
   }
 
   private def logEndOffset_=(newLogEndOffset: LogOffsetMetadata) {
     if (isLocal) {
+      //对于本地副本,不能直接更新LEO.其LEO由Log.logEndOffstMetadata字段决定的
       throw new KafkaException("Should not set log end offset on partition [%s,%d]'s local replica %d".format(topic, partitionId, brokerId))
     } else {
+      //对于远程副本,LEO是通过请求进行更新的
       logEndOffsetMetadata = newLogEndOffset
       trace("Setting log end offset for replica %d for partition [%s,%d] to [%s]"
         .format(brokerId, topic, partitionId, logEndOffsetMetadata))
     }
   }
 
+  //获取 logEndOffset,本地副本和远程副本,获取的方式不同
   def logEndOffset =
     if (isLocal)
       log.get.logEndOffsetMetadata
@@ -79,6 +87,7 @@ class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
       logEndOffsetMetadata
 
   def highWatermark_=(newHighWatermark: LogOffsetMetadata) {
+    //只有本地副本可以更新HW
     if (isLocal) {
       highWatermarkMetadata = newHighWatermark
       trace("Setting high watermark for replica %d partition [%s,%d] on broker %d to [%s]"
