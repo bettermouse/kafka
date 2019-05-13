@@ -45,9 +45,11 @@ object RequestChannel extends Logging {
 
   case class Session(principal: KafkaPrincipal, clientAddress: InetAddress)
 
+  //processor id,
   case class Request(processor: Int, connectionId: String, session: Session, private var buffer: ByteBuffer, startTimeMs: Long, securityProtocol: SecurityProtocol) {
     // These need to be volatile because the readers are in the network thread and the writers are in the request
     // handler threads or the purgatory threads
+    //这需要volatile
     @volatile var requestDequeueTimeMs = -1L
     @volatile var apiLocalCompleteTimeMs = -1L
     @volatile var responseCompleteTimeMs = -1L
@@ -178,22 +180,26 @@ object RequestChannel extends Logging {
 
 class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMetricsGroup {
   private var responseListeners: List[(Int) => Unit] = Nil
+  //请求队列
   private val requestQueue = new ArrayBlockingQueue[RequestChannel.Request](queueSize)
+  //每个processor负责写的请求
   private val responseQueues = new Array[BlockingQueue[RequestChannel.Response]](numProcessors)
+  //每个processor写的队列
   for(i <- 0 until numProcessors)
     responseQueues(i) = new LinkedBlockingQueue[RequestChannel.Response]()
-
+  //metrics 统计请求队列
   newGauge(
     "RequestQueueSize",
     new Gauge[Int] {
       def value = requestQueue.size
     }
   )
-
+  //metrics 统计总的响应队列的请求
   newGauge("ResponseQueueSize", new Gauge[Int]{
     def value = responseQueues.foldLeft(0) {(total, q) => total + q.size()}
   })
 
+  //metrics 统计每个响应队列的请求
   for (i <- 0 until numProcessors) {
     newGauge("ResponseQueueSize",
       new Gauge[Int] {
@@ -203,12 +209,14 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
     )
   }
 
-  /** Send a request to be handled, potentially blocking until there is room in the queue for the request */
+  /** Send a request to be handled, potentially blocking until there is room in the queue for the request
+    * 发送请求处理，可能阻塞，直到请求队列中有空间 */
   def sendRequest(request: RequestChannel.Request) {
     requestQueue.put(request)
   }
 
-  /** Send a response back to the socket server to be sent over the network */
+  /** Send a response back to the socket server to be sent over the network
+    * 发一个response */
   def sendResponse(response: RequestChannel.Response) {
     responseQueues(response.processor).put(response)
     for(onResponse <- responseListeners)

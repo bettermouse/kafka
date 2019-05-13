@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 package kafka.utils.timer
-
+//链表中的每一项表示的都是定时任务项TimerTaskEntry其中封装了真正的定时任务TimerTask。
 trait TimerTask extends Runnable {
 
   val delayMs: Long // timestamp in millisecond

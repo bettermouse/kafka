@@ -35,7 +35,7 @@ import org.apache.kafka.common.record.TimestampType
 
 import scala.collection.{JavaConverters, Map, immutable}
 import JavaConverters._
-
+//配置的默认值
 object Defaults {
   /** ********* Zookeeper Configuration ***********/
   val ZkSessionTimeoutMs = 6000

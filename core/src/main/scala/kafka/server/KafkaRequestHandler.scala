@@ -26,6 +26,7 @@ import org.apache.kafka.common.utils.Utils
 
 /**
  * A thread that answers kafka requests.
+  * 一个回答kafka请求的线程
  */
 class KafkaRequestHandler(id: Int,
                           brokerId: Int,
@@ -38,18 +39,21 @@ class KafkaRequestHandler(id: Int,
   def run() {
     while(true) {
       try {
+        //请求
         var req : RequestChannel.Request = null
+        //当请求为NULL,死循环
         while (req == null) {
           // We use a single meter for aggregate idle percentage for the thread pool.
           // Since meter is calculated as total_recorded_value / time_window and
           // time_window is independent of the number of threads, each recorded idle
           // time should be discounted by # threads.
           val startSelectTime = SystemTime.nanoseconds
+          //等300ML拿消息
           req = requestChannel.receiveRequest(300)
           val idleTime = SystemTime.nanoseconds - startSelectTime
           aggregateIdleMeter.mark(idleTime / totalHandlerThreads)
         }
-
+        //处理对应的请求
         if(req eq RequestChannel.AllDone) {
           debug("Kafka request handler %d on broker %d received shut down command".format(
             id, brokerId))
@@ -57,6 +61,7 @@ class KafkaRequestHandler(id: Int,
         }
         req.requestDequeueTimeMs = SystemTime.milliseconds
         trace("Kafka request handler %d on broker %d handling request %s".format(id, brokerId, req))
+        //调用API处理对应的请求
         apis.handle(req)
       } catch {
         case e: Throwable => error("Exception when handling request", e)
@@ -77,14 +82,17 @@ class KafkaRequestHandlerPool(val brokerId: Int,
 
   this.logIdent = "[Kafka Request Handler on Broker " + brokerId + "], "
   val threads = new Array[Thread](numThreads)
+  //池中有多个Handler
   val runnables = new Array[KafkaRequestHandler](numThreads)
   for(i <- 0 until numThreads) {
+    //启动每个Handler
     runnables(i) = new KafkaRequestHandler(i, brokerId, aggregateIdleMeter, numThreads, requestChannel, apis)
     threads(i) = Utils.daemonThread("kafka-request-handler-" + i, runnables(i))
     threads(i).start()
   }
 
   def shutdown() {
+    //关闭.
     info("shutting down")
     for(handler <- runnables)
       handler.shutdown

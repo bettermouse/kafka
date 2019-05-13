@@ -480,6 +480,7 @@ public class Utils {
     public static Thread newThread(String name, Runnable runnable, boolean daemon) {
         Thread thread = new Thread(runnable, name);
         thread.setDaemon(daemon);
+        //添加捕获异常
         thread.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             public void uncaughtException(Thread t, Throwable e) {
                 log.error("Uncaught exception in thread '" + t.getName() + "':", e);

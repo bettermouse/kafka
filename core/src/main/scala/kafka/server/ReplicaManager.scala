@@ -319,6 +319,8 @@ class ReplicaManager(val config: KafkaConfig,
   /**
    * Append messages to leader replicas of the partition, and wait for them to be replicated to other replicas;
    * the callback function will be triggered either when timeout or the required acks are satisfied
+    * 添加消息到 分区的主副本.等待它们被复制到其它副本.
+    * 当超时或请求的acks被满足这个回调函数会被调用
    */
   def appendMessages(timeout: Long,
                      requiredAcks: Short,
@@ -387,6 +389,7 @@ class ReplicaManager(val config: KafkaConfig,
 
   /**
    * Append the messages to the local replica logs
+    * 将消息追加到本地副本日志
    */
   private def appendToLocalLog(internalTopicsAllowed: Boolean,
                                messagesPerPartition: Map[TopicPartition, MessageSet],

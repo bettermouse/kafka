@@ -100,6 +100,7 @@ import java.util.concurrent.atomic.AtomicInteger
 private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, taskCounter: AtomicInteger, queue: DelayQueue[TimerTaskList]) {
 
   private[this] val interval = tickMs * wheelSize
+  //桶
   private[this] val buckets = Array.tabulate[TimerTaskList](wheelSize) { _ => new TimerTaskList(taskCounter) }
 
   private[this] var currentTime = startMs - (startMs % tickMs) // rounding down to multiple of tickMs

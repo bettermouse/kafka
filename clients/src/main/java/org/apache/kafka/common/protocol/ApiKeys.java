@@ -20,6 +20,7 @@ package org.apache.kafka.common.protocol;
  * Identifiers for all the Kafka APIs
  */
 public enum ApiKeys {
+    //生产
     PRODUCE(0, "Produce"),
     FETCH(1, "Fetch"),
     LIST_OFFSETS(2, "Offsets"),

@@ -49,6 +49,7 @@ import org.apache.kafka.common.requests.SaslHandshakeResponse
 
 /**
  * Logic to handle the various Kafka requests
+  * 处理各种Kafka请求的逻辑
  */
 class KafkaApis(val requestChannel: RequestChannel,
                 val replicaManager: ReplicaManager,
@@ -402,6 +403,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       }
 
       // call the replica manager to append messages to the replicas
+      //调用 副本 管理来添加消息到 副本
       replicaManager.appendMessages(
         produceRequest.timeout.toLong,
         produceRequest.acks,
@@ -504,6 +506,7 @@ class KafkaApis(val requestChannel: RequestChannel,
 
   /**
    * Handle an offset request
+    * 处理一个offset请求
    */
   def handleOffsetRequest(request: RequestChannel.Request) {
     val correlationId = request.header.correlationId

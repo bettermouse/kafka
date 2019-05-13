@@ -29,6 +29,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   // TimerTaskList forms a doubly linked cyclic list using a dummy root entry
   // root.next points to the head
   // root.prev points to the tail
+
   private[this] val root = new TimerTaskEntry(null, -1)
   root.next = root
   root.prev = root

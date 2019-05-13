@@ -40,6 +40,7 @@ import org.apache.zookeeper.{CreateMode, KeeperException, ZooDefs, ZooKeeper}
 import scala.collection._
 
 object ZkUtils {
+  //消费者路径
   val ConsumersPath = "/consumers"
   //记录了集群中可用的broker的id
   val BrokerIdsPath = "/brokers/ids"
@@ -128,6 +129,7 @@ class ZkUtils(val zkClient: ZkClient,
               val zkConnection: ZkConnection,
               val isSecure: Boolean) extends Logging {
   // These are persistent ZK paths that should exist on kafka broker startup.
+  // 在kafka broker启动的时候,这些zk的路径应该存在.
   val persistentZkPaths = Seq(ConsumersPath,
                               BrokerIdsPath,
                               BrokerTopicsPath,
@@ -331,6 +333,7 @@ class ZkUtils(val zkClient: ZkClient,
 
   /**
    *  make sure a persistent path exists in ZK. Create the path if not exist.
+    *
    */
   def makeSurePersistentPathExists(path: String, acls: java.util.List[ACL] = DefaultAcls) {
     //Consumer path is kept open as different consumers will write under this node.
@@ -339,6 +342,7 @@ class ZkUtils(val zkClient: ZkClient,
     } else acls
 
     if (!zkClient.exists(path))
+      //确保ZK中存在一个持久路径。如果不存在，创建路径。
       ZkPath.createPersistent(zkClient, path, true, acl) //won't throw NoNodeException or NodeExistsException
   }
 

@@ -87,6 +87,8 @@ object KafkaServer {
 /**
  * Represents the lifecycle of a single Kafka broker. Handles all functionality required
  * to start up and shutdown a single Kafka node.
+  * 代表单个kafka broker的生命周期,
+  * 表示单个Kafka代理的生命周期。 处理启动和关闭单个Kafka节点所需的所有功能。
  */
 class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePrefix: Option[String] = None) extends Logging with KafkaMetricsGroup {
   private val startupComplete = new AtomicBoolean(false)
@@ -134,6 +136,8 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
 
   var zkUtils: ZkUtils = null
   val correlationId: AtomicInteger = new AtomicInteger(0)
+
+  //meta.properties属性
   val brokerMetaPropsFile = "meta.properties"
   val brokerMetadataCheckpoints = config.logDirs.map(logDir => (logDir, new BrokerMetadataCheckpoint(new File(logDir + File.separator +brokerMetaPropsFile)))).toMap
 
@@ -156,6 +160,9 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
   /**
    * Start up API for bringing up a single instance of the Kafka server.
    * Instantiates the LogManager, the SocketServer and the request handlers - KafkaRequestHandlers
+    *启动API，启动Kafka服务器的单个实例。
+    * 实例化LogManager，SocketServer  和请求处理程序 KafkaRequestHandlers
+    *
    */
   def startup() {
     try {
@@ -168,6 +175,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         return
 
       val canStartup = isStartingUp.compareAndSet(false, true)
+      //如果成功的话
       if (canStartup) {
         metrics = new Metrics(metricConfig, reporters, kafkaMetricsTime, true)
 
@@ -583,6 +591,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
 
   /**
    * After calling shutdown(), use this API to wait until the shutdown is complete
+    * 在调用shutdown()后.用这个API来等待shutdown完成
    */
   def awaitShutdown(): Unit = shutdownLatch.await()
 

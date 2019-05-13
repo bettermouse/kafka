@@ -36,6 +36,9 @@ import java.util.concurrent.{ExecutionException, ExecutorService, Executors, Fut
  * size or I/O rate.
  * 
  * A background thread handles log retention by periodically truncating excess log segments.
+  *kafka log management subsystem的主要入口, The log manager负责
+  * log creation, retrieval, and cleaning.  委托
+  *
  */
 @threadsafe
 class LogManager(val logDirs: Array[File],
@@ -183,6 +186,7 @@ class LogManager(val logDirs: Array[File],
 
   /**
    *  Start the background threads to flush logs and do log cleanup
+    * 启动后台线程以刷新日志并进行日志清理
    */
   def startup() {
     /* Schedule the cleanup task to delete old logs */

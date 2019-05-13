@@ -23,7 +23,8 @@ import kafka.server.{LogReadResult, LogOffsetMetadata}
 import kafka.common.KafkaException
 
 import java.util.concurrent.atomic.AtomicLong
-
+//增加集群的高可用性
+//
 class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
               val partition: Partition, //此副本对应的消息
               time: Time = SystemTime,
@@ -31,7 +32,7 @@ class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
               //本地副本对应的log对象
               val log: Option[Log] = None) extends Logging {
   // the high watermark offset value, in non-leader replicas only its message offsets are kept
-  //
+  // 最 hw值,在非领导副本中，只保留其消息偏移量
   @volatile private[this] var highWatermarkMetadata: LogOffsetMetadata = new LogOffsetMetadata(initialHighWatermarkValue)
   // the log end offset value, kept in all replicas;
   // for local replica it is the log's end offset, for remote replicas its value is only updated by follower fetch
