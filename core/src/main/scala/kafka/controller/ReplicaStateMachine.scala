@@ -29,12 +29,20 @@ import kafka.utils.CoreUtils._
 /**
  * This class represents the state machine for replicas. It defines the states that a replica can be in, and
  * transitions to move the replica to another legal state. The different states that a replica can be in are -
+  *
+  * 这个类代表副本的状态机.它定义了一个副本可以有的状态.和移动副本到另一个状态的转换.
+  * 个副本可以在的不同的状态是
  * 1. NewReplica        : The controller can create new replicas during partition reassignment. In this state, a
  *                        replica can only get become follower state change request.  Valid previous
  *                        state is NonExistentReplica
+  *
+  * 1.新副本                    controller可以在分区分配时创建一个新的副本 .在这个状态,一个副本仅可以变成
+  * 得到变成follower state 的请求.有效的先前状态是NonExistentReplica
  * 2. OnlineReplica     : Once a replica is started and part of the assigned replicas for its partition, it is in this
  *                        state. In this state, it can get either become leader or become follower state change requests.
  *                        Valid previous state are NewReplica, OnlineReplica or OfflineReplica
+  *  OnlineReplica 一旦一个    replica 被启动,为其分区分配了部分副本,它进入这种状态,在这种状态,它可以得到要么变成leader或变成follwer
+  *  状态 变化请求.先前有效的状态是NewReplica  OnlineReplica OfflineReplica
  * 3. OfflineReplica    : If a replica dies, it moves to this state. This happens when the broker hosting the replica
  *                        is down. Valid previous state are NewReplica, OnlineReplica
  * 4. ReplicaDeletionStarted: If replica deletion starts, it is moved to this state. Valid previous state is OfflineReplica

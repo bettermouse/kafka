@@ -155,21 +155,7 @@ object KafkaController extends Logging {
     }
   }
 }
-<<<<<<< Updated upstream
 //组织并封装了其他组件,对外提供API接口
-=======
-
-/**
-  * 在kafka中,只有一个KafkaController能够成为leader来管理集群.其它未成为leader 的broker的
-  * 也会创建 KafkaController,leader出现故障时,竞争成为新的leader
-  * @param config
-  * @param zkUtils
-  * @param brokerState
-  * @param time
-  * @param metrics
-  * @param threadNamePrefix
-  */
->>>>>>> Stashed changes
 class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerState: BrokerState, time: Time, metrics: Metrics, threadNamePrefix: Option[String] = None) extends Logging with KafkaMetricsGroup {
   this.logIdent = "[Controller " + config.brokerId + "]: "
   private var isRunning = true
@@ -177,7 +163,6 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
   val controllerContext = new ControllerContext(zkUtils, config.zkSessionTimeoutMs)
   val partitionStateMachine = new PartitionStateMachine(this)
   val replicaStateMachine = new ReplicaStateMachine(this)
-  //
   private val controllerElector = new ZookeeperLeaderElector(controllerContext, ZkUtils.ControllerPath, onControllerFailover,
     onControllerResignation, config.brokerId)
   // have a separate scheduler for the controller to be able to start and stop independently of the
@@ -697,8 +682,10 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
   def startup() = {
     inLock(controllerContext.controllerLock) {
       info("Controller starting up")
+      //方法注册连接 zk 的超时监听器；
       registerSessionExpirationListener()
       isRunning = true
+      //启动选举
       controllerElector.startup
       info("Controller startup complete")
     }

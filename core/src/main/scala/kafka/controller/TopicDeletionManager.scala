@@ -33,8 +33,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * This manages the state machine for topic deletion.
+  *
+  * 这管理状态机以删除主题。
  * 1. TopicCommand issues topic deletion by creating a new admin path /admin/delete_topics/<topic>
+  *   TopicCommand 通过创建新的admin path /admin/delete_topics/<topic> 来发布topic删除
  * 2. The controller listens for child changes on /admin/delete_topic and starts topic deletion for the respective topics
+  * 这个controller监听 孩子变化在 /admin/delete_topic,并开始删除相应主题的主题
+  *
+  *
  * 3. The controller has a background thread that handles topic deletion. The purpose of having this background thread
  *    is to accommodate the TTL feature, when we have it. This thread is signaled whenever deletion for a topic needs to
  *    be started or resumed. Currently, a topic's deletion can be started only by the onPartitionDeletion callback on the
@@ -44,6 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    3.2 partition reassignment for partitions of that topic is in progress
  *    3.3 preferred replica election for partitions of that topic is in progress
  *    (though this is not strictly required since it holds the controller lock for the entire duration from start to end)
+  *
+  *    这个controller有一个后端线程,它处理topic的删除,有一个后端线程的目的是容纳TTL feature
  * 4. Topic deletion is resumed when -
  *    4.1 broker hosting one of the replicas for that topic is started
  *    4.2 preferred replica election for partitions of that topic completes
