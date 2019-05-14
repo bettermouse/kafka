@@ -226,9 +226,9 @@ public class NetworkClient implements KafkaClient {
 
     /**
      * Queue up the given request for sending. Requests can only be sent out to ready nodes.
-     *
      * @param request The request
      * @param now The current timestamp
+     * 将给定的发送请求排队。 请求只能发送到就绪节点。
      */
     @Override
     public void send(ClientRequest request, long now) {

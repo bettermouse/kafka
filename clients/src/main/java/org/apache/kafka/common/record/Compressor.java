@@ -83,10 +83,12 @@ public class Compressor {
 
     private final CompressionType type;
     private final DataOutputStream appendStream;
+    //
     private final ByteBufferOutputStream bufferStream;
     private final int initPos;
 
     public long writtenUncompressed;
+    //记录个数
     public long numRecords;
     public float compressionRate;
     public long maxTimestamp;
@@ -109,6 +111,7 @@ public class Compressor {
 
         // create the stream
         bufferStream = new ByteBufferOutputStream(buffer);
+        //增加了压缩功能
         appendStream = wrapForOutput(bufferStream, type, COMPRESSION_DEFAULT_BUFFER_SIZE);
     }
 
@@ -237,6 +240,7 @@ public class Compressor {
             return bufferStream.buffer().position();
         } else {
             // estimate the written bytes to the underlying byte buffer based on uncompressed written bytes
+            //根据未压缩的写入字节估计写入字节到基础字节缓冲区
             return (long) (writtenUncompressed * TYPE_TO_RATE[type.id] * COMPRESSION_RATE_ESTIMATION_FACTOR);
         }
     }

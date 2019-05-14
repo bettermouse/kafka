@@ -78,21 +78,29 @@ import org.slf4j.LoggerFactory;
 public class Selector implements Selectable {
 
     private static final Logger log = LoggerFactory.getLogger(Selector.class);
-
+    //用来监听网络的IO事件
     private final java.nio.channels.Selector nioSelector;
+    //维护了nodeId 与KafkaChannel之间的映射关系
     private final Map<String, KafkaChannel> channels;
+    //记录已经完全发出的请求
     private final List<Send> completedSends;
+    //记录完全接收到的请求
     private final List<NetworkReceive> completedReceives;
+    //暂存一次OP_READ事件处理过程中读取到的全部请求,一个OP_READ事件处理完成后,
+    //会将stagedReceives集合中的请求保存到completedReceives
     private final Map<KafkaChannel, Deque<NetworkReceive>> stagedReceives;
     private final Set<SelectionKey> immediatelyConnectedKeys;
+    //记录一次poll过程中发现的断开的连接和新建立的连接
     private final List<String> disconnected;
     private final List<String> connected;
+    //记录向哪些NODE发送请求失败
     private final List<String> failedSends;
     private final Time time;
     private final SelectorMetrics sensors;
     private final String metricGrpPrefix;
     private final Map<String, String> metricTags;
     private final ChannelBuilder channelBuilder;
+    //
     private final Map<String, Long> lruConnections;
     private final long connectionsMaxIdleNanos;
     private final int maxReceiveSize;
@@ -139,9 +147,12 @@ public class Selector implements Selectable {
     /**
      * Begin connecting to the given address and add the connection to this nioSelector associated with the given id
      * number.
+     * 开始连接到给定的地址,添加连接到与给定ID号关联的此这个nioSelector
      * <p>
      * Note that this call only initiates the connection, which will be completed on a future {@link #poll(long)}
      * call. Check {@link #connected()} to see which (if any) connections have completed after a given poll call.
+     * 注意 这个调用仅初始化连接,该连接将在将来的poll调用完成.
+     *  检查connected（）以查看在给定轮询调用后哪些（如果有）连接已完成。
      * @param id The id for the new connection
      * @param address The address to connect to
      * @param sendBufferSize The send buffer for the new connection
@@ -155,16 +166,20 @@ public class Selector implements Selectable {
             throw new IllegalStateException("There is already a connection for id " + id);
 
         SocketChannel socketChannel = SocketChannel.open();
+        //非阻塞
         socketChannel.configureBlocking(false);
         Socket socket = socketChannel.socket();
         socket.setKeepAlive(true);
+        //sendBufferSize
         if (sendBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
             socket.setSendBufferSize(sendBufferSize);
+        //receiveBufferSize
         if (receiveBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
             socket.setReceiveBufferSize(receiveBufferSize);
         socket.setTcpNoDelay(true);
         boolean connected;
         try {
+            //发起一个连接
             connected = socketChannel.connect(address);
         } catch (UnresolvedAddressException e) {
             socketChannel.close();
@@ -181,6 +196,7 @@ public class Selector implements Selectable {
         if (connected) {
             // OP_CONNECT won't trigger for immediately connected channels
             log.debug("Immediately connected to node {}", channel.id());
+            //立即连接的Key
             immediatelyConnectedKeys.add(key);
             key.interestOps(0);
         }
@@ -274,28 +290,34 @@ public class Selector implements Selectable {
 
         /* check ready keys */
         long startSelect = time.nanoseconds();
+        //调用select 方法,等待IO事件的发生
         int readyKeys = select(timeout);
         long endSelect = time.nanoseconds();
         currentTimeNanos = endSelect;
         this.sensors.selectTime.record(endSelect - startSelect, time.milliseconds());
 
         if (readyKeys > 0 || !immediatelyConnectedKeys.isEmpty()) {
+            //处理SelectionKeys,处理IO事件
             pollSelectionKeys(this.nioSelector.selectedKeys(), false);
             pollSelectionKeys(immediatelyConnectedKeys, true);
         }
-
+        //将stagedReceives复制到completeReceives集合中
         addToCompletedReceives();
 
         long endIo = time.nanoseconds();
         this.sensors.ioTime.record(endIo - endSelect, time.milliseconds());
+        //关闭长期空间的连接
         maybeCloseOldestConnection();
     }
 
+    //是处理IO操作的核心方法. CONNECT READ WRITE
     private void pollSelectionKeys(Iterable<SelectionKey> selectionKeys, boolean isImmediatelyConnected) {
         Iterator<SelectionKey> iterator = selectionKeys.iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
+            //移除这个Key
             iterator.remove();
+            //得到kafka channel
             KafkaChannel channel = channel(key);
 
             // register all per-connection metrics at once
@@ -304,42 +326,54 @@ public class Selector implements Selectable {
 
             try {
 
-                /* complete any connections that have finished their handshake (either normally or immediately) */
+                /* complete any connections that have finished their handshake (either normally or immediately)
+                * 完成任何已完成握手的连接（正常或立即）*/
                 if (isImmediatelyConnected || key.isConnectable()) {
+
                     if (channel.finishConnect()) {
+                        //连接完成
                         this.connected.add(channel.id());
                         this.sensors.connectionCreated.record();
                     } else
                         continue;
                 }
 
-                /* if channel is not ready finish prepare */
+                /* if channel is not ready finish prepare
+                 * 连接了还没准备好 */
                 if (channel.isConnected() && !channel.ready())
                     channel.prepare();
 
-                /* if channel is ready read from any connections that have readable data */
+                /* if channel is ready read from any connections that have readable data
+                 * 如果通道已准备好从任何具有可读数据的连接中读取 */
                 if (channel.ready() && key.isReadable() && !hasStagedReceive(channel)) {
                     NetworkReceive networkReceive;
                     while ((networkReceive = channel.read()) != null)
+                        //将接收添加到暂存接收
                         addToStagedReceives(channel, networkReceive);
                 }
 
                 /* if channel is ready write to any sockets that have space in their buffer and for which we have data */
                 if (channel.ready() && key.isWritable()) {
+                    //发送成功的send
                     Send send = channel.write();
                     if (send != null) {
+                        //写
                         this.completedSends.add(send);
                         this.sensors.recordBytesSent(channel.id(), send.size());
                     }
                 }
 
-                /* cancel any defunct sockets */
+                /* cancel any defunct sockets
+                * 取消任何已失效的套接字*/
                 if (!key.isValid()) {
                     close(channel);
                     this.disconnected.add(channel.id());
                 }
-
+            //completedSends 和completedReceives分别代表在selecotr端已经发送和接收的请求
+            //它们会在networkclient poll调用之后被不同的 handleCompleteXXX处理
             } catch (Exception e) {
+                //socket地址
+                //抛出异常,则认为连接关闭,将对应的NODEid 添加到disconnect集合
                 String desc = channel.socketDescription();
                 if (e instanceof IOException)
                     log.debug("Connection with {} disconnected", desc, e);
@@ -426,6 +460,7 @@ public class Selector implements Selectable {
 
     /**
      * Clear the results from the prior poll
+     * 清除先前poll的结果
      */
     private void clear() {
         this.completedSends.clear();
@@ -465,6 +500,7 @@ public class Selector implements Selectable {
 
     /**
      * Begin closing this connection
+     * 开始关闭这个连接
      */
     private void close(KafkaChannel channel) {
         try {
@@ -472,6 +508,7 @@ public class Selector implements Selectable {
         } catch (IOException e) {
             log.error("Exception closing connection to node {}:", channel.id(), e);
         }
+        //移除这个连接
         this.stagedReceives.remove(channel);
         this.channels.remove(channel.id());
         this.lruConnections.remove(channel.id());
@@ -538,6 +575,7 @@ public class Selector implements Selectable {
 
     /**
      * adds a receive to staged receives
+     * 将接收添加到暂存接收
      */
     private void addToStagedReceives(KafkaChannel channel, NetworkReceive receive) {
         if (!stagedReceives.containsKey(channel))

@@ -24,15 +24,18 @@ import org.apache.kafka.common.utils.AbstractIterator;
 
 /**
  * A {@link Records} implementation backed by a ByteBuffer.
+ * 由ByteBuffer支持的Records实现。
  */
 public class MemoryRecords implements Records {
 
     private final static int WRITE_LIMIT_FOR_READABLE_ONLY = -1;
 
     // the compressor used for appends-only
+    //压缩
     private final Compressor compressor;
 
     // the write limit for writable buffer, which may be smaller than the buffer capacity
+    //记录buffer字段最多可以写入多少个字节的数据
     private final int writeLimit;
 
     // the capacity of the initial buffer, which is only used for de-allocation of writable records
@@ -42,6 +45,7 @@ public class MemoryRecords implements Records {
     private ByteBuffer buffer;
 
     // indicate if the memory records is writable or not (i.e. used for appends or read-only)
+    //发送之前是只读模式
     private boolean writable;
 
     // Construct a writable memory records
@@ -119,6 +123,7 @@ public class MemoryRecords implements Records {
             return false;
 
         return this.compressor.numRecordsWritten() == 0 ?
+                //用初始空间判断
             this.initialCapacity >= Records.LOG_OVERHEAD + Record.recordSize(key, value) :
             this.writeLimit >= this.compressor.estimatedBytesWritten() + Records.LOG_OVERHEAD + Record.recordSize(key, value);
     }
@@ -133,10 +138,12 @@ public class MemoryRecords implements Records {
     public void close() {
         if (writable) {
             // close the compressor to fill-in wrapper message metadata if necessary
+            //如有必要，关闭压缩器以填充包装消息元数据
             compressor.close();
 
             // flip the underlying buffer to be ready for reads
             buffer = compressor.buffer();
+            //用来读
             buffer.flip();
 
             // reset the writable flag
@@ -151,6 +158,7 @@ public class MemoryRecords implements Records {
         if (writable) {
             return compressor.buffer().position();
         } else {
+            //buffer的大小
             return buffer.limit();
         }
     }

@@ -30,10 +30,13 @@ import org.apache.kafka.common.utils.Utils;
 
 public class KafkaChannel {
     private final String id;
+    //transportLayer 根据网络协议的不同,提供不同的子类,而对KafkaChannel提供统一的接口
     private final TransportLayer transportLayer;
     private final Authenticator authenticator;
     private final int maxReceiveSize;
+    //读时缓存,通过byteBuffer实现
     private NetworkReceive receive;
+    //写时缓存,通过byteBuffer实现
     private Send send;
 
     public KafkaChannel(String id, TransportLayer transportLayer, Authenticator authenticator, int maxReceiveSize) throws IOException {
@@ -121,20 +124,24 @@ public class KafkaChannel {
     public void setSend(Send send) {
         if (this.send != null)
             throw new IllegalStateException("Attempt to begin a send operation with prior send operation still in progress.");
+        //设置send
         this.send = send;
+        //关注SelectionKey.OP_WRITE事件
         this.transportLayer.addInterestOps(SelectionKey.OP_WRITE);
     }
-
+    //读
     public NetworkReceive read() throws IOException {
         NetworkReceive result = null;
 
         if (receive == null) {
             receive = new NetworkReceive(maxReceiveSize, id);
         }
-
+        //读取消息
         receive(receive);
+        //如果消息完成,读的数据填充满了buffer
         if (receive.complete()) {
             receive.payload().rewind();
+            //读取的消息
             result = receive;
             receive = null;
         }
@@ -155,6 +162,8 @@ public class KafkaChannel {
     }
 
     private boolean send(Send send) throws IOException {
+        //如果send在一次write调用时没有发送完,SelectionKey.OP_WRITE没有取消
+        //还会继续监听此channel的SelectionKey.OP_WRITE事件,直到整个send请求发送完成才取消
         send.writeTo(transportLayer);
         if (send.completed())
             transportLayer.removeInterestOps(SelectionKey.OP_WRITE);

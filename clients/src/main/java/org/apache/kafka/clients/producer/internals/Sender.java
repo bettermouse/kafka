@@ -133,6 +133,7 @@ public class Sender implements Runnable {
             try {
                 run(time.milliseconds());
             } catch (Exception e) {
+                //异常
                 log.error("Uncaught error in kafka producer I/O thread: ", e);
             }
         }

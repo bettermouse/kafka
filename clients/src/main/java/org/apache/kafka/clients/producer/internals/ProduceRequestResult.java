@@ -26,6 +26,9 @@ import org.apache.kafka.common.TopicPartition;
  * A class that models the future completion of a produce request for a single partition. There is one of these per
  * partition in a produce request and it is shared by all the {@link RecordMetadata} instances that are batched together
  * for the same partition in the request.
+ * 一个类，用于模拟单个分区的生产请求的future completion。
+ * 在一个produce request，每个分区都有一个，它由所有RecordMetadata实例共享，
+ * 这些实例在请求中为同一个分区一起批处理。
  */
 public final class ProduceRequestResult {
 

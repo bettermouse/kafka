@@ -24,7 +24,6 @@ import kafka.common.KafkaException
 
 import java.util.concurrent.atomic.AtomicLong
 //增加集群的高可用性
-//
 class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
               val partition: Partition, //此副本对应的消息
               time: Time = SystemTime,

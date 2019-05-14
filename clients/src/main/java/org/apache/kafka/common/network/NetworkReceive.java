@@ -27,6 +27,7 @@ public class NetworkReceive implements Receive {
     public final static int UNLIMITED = -1;
 
     private final String source;
+    //四个字节,读取 int值, 为消息的长度
     private final ByteBuffer size;
     private final int maxSize;
     private ByteBuffer buffer;
@@ -77,23 +78,28 @@ public class NetworkReceive implements Receive {
     @Deprecated
     public long readFromReadableChannel(ReadableByteChannel channel) throws IOException {
         int read = 0;
+        //如果size有空间
         if (size.hasRemaining()) {
+            //有空间
             int bytesRead = channel.read(size);
             if (bytesRead < 0)
                 throw new EOFException();
             read += bytesRead;
             if (!size.hasRemaining()) {
+                //没有空间了,写了4个字节了
                 size.rewind();
+                //读取  消息的大小
                 int receiveSize = size.getInt();
                 if (receiveSize < 0)
                     throw new InvalidReceiveException("Invalid receive (size = " + receiveSize + ")");
                 if (maxSize != UNLIMITED && receiveSize > maxSize)
                     throw new InvalidReceiveException("Invalid receive (size = " + receiveSize + " larger than " + maxSize + ")");
-
+                //读取一个 完整的消息需要的大小
                 this.buffer = ByteBuffer.allocate(receiveSize);
             }
         }
         if (buffer != null) {
+            //有buffer
             int bytesRead = channel.read(buffer);
             if (bytesRead < 0)
                 throw new EOFException();

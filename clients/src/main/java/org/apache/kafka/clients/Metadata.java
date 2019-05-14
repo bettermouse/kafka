@@ -32,20 +32,31 @@ import org.slf4j.LoggerFactory;
  * 
  * Metadata is maintained for only a subset of topics, which can be added to over time. When we request metadata for a
  * topic we don't have any metadata for it will trigger a metadata update.
+ * 封装元数据的一些逻辑的类。
+ * 此类由客户端线程（用于分区）和后台发送方线程共享。 元数据仅针对主题的子集进行维护，
+ * 可以随时间添加。 当我们请求主题的元数据时，我们没有任何元数据会触发元数据更新。
  */
 public final class Metadata {
 
     private static final Logger log = LoggerFactory.getLogger(Metadata.class);
-
+    //两次更新隔多久
     private final long refreshBackoffMs;
+    //每隔多久更新一次
     private final long metadataExpireMs;
+    //版本号
     private int version;
+    //上一次更新的时间
     private long lastRefreshMs;
+    //上一次成功更新的时间
     private long lastSuccessfulRefreshMs;
     private Cluster cluster;
+    //是否强制更新,是触发send线程更新的条件之一
     private boolean needUpdate;
+    //集群中的topic
     private final Set<String> topics;
+    //更新cluster字段之前会调用
     private final List<Listener> listeners;
+    //是否需要有的topic
     private boolean needMetadataForAllTopics;
 
     /**
@@ -101,6 +112,7 @@ public final class Metadata {
 
     /**
      * Request an update of the current cluster metadata info, return the current version before the update
+     * 需要更新,记录版本号
      */
     public synchronized int requestUpdate() {
         this.needUpdate = true;
@@ -117,6 +129,7 @@ public final class Metadata {
 
     /**
      * Wait for metadata update until the current version is larger than the last version we know of
+     * 等待元数据更新，直到当前版本大于我们所知的最新版本
      */
     public synchronized void awaitUpdate(final int lastVersion, final long maxWaitMs) throws InterruptedException {
         if (maxWaitMs < 0) {

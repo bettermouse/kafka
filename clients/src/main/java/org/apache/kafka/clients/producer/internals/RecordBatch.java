@@ -33,15 +33,23 @@ public final class RecordBatch {
 
     private static final Logger log = LoggerFactory.getLogger(RecordBatch.class);
 
+    //记录保存record的个数
     public int recordCount = 0;
+    //最大record的记录
     public int maxRecordSize = 0;
+    //尝试发送当前RecordBatch的次数
     public volatile int attempts = 0;
     public final long createdMs;
     public long drainedMs;
+    //最后一次尝试发送的时间戳
     public long lastAttemptMs;
+    //指向用来存储数据的MemoryRecords
     public final MemoryRecords records;
+    //RecordBatch的记录都会发送给此TopicPartition
     public final TopicPartition topicPartition;
+    //RecordBatch状态的future
     public final ProduceRequestResult produceFuture;
+    //最后一次追加消息的时间戳
     public long lastAppendTime;
     private final List<Thunk> thunks;
     private long offsetCounter = 0L;
@@ -60,20 +68,25 @@ public final class RecordBatch {
 
     /**
      * Append the record to the current record set and return the relative offset within that record set
+     *将记录追加到当前记录集并返回该记录集中的相对偏移量
      * 
      * @return The RecordSend corresponding to this record or null if there isn't sufficient room.
      */
     public FutureRecordMetadata tryAppend(long timestamp, byte[] key, byte[] value, Callback callback, long now) {
+        //估算剩余的空间,这不是一个准确值
         if (!this.records.hasRoomFor(key, value)) {
             return null;
         } else {
+            //offsetCounter是在record batch中的偏移量
             long checksum = this.records.append(offsetCounter++, timestamp, key, value);
             this.maxRecordSize = Math.max(this.maxRecordSize, Record.recordSize(key, value));
             this.lastAppendTime = now;
+            //创建FutureRecordMetadata对象
             FutureRecordMetadata future = new FutureRecordMetadata(this.produceFuture, this.recordCount,
                                                                    timestamp, checksum,
                                                                    key == null ? -1 : key.length,
                                                                    value == null ? -1 : value.length);
+            //将用户自定义的 callback, future保存到thunks集合中.
             if (callback != null)
                 thunks.add(new Thunk(callback, future));
             this.recordCount++;

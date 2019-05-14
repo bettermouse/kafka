@@ -26,13 +26,16 @@ import java.util.Set;
 
 /**
  * A representation of a subset of the nodes, topics, and partitions in the Kafka cluster.
+ * Kafka集群中节点，主题和分区子集的表示。
  */
 public final class Cluster {
 
     private final boolean isBootstrapConfigured;
     private final List<Node> nodes;
     private final Set<String> unauthorizedTopics;
+    //分区  分区详细信息
     private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition;
+    //topic查分区
     private final Map<String, List<PartitionInfo>> partitionsByTopic;
     private final Map<String, List<PartitionInfo>> availablePartitionsByTopic;
     private final Map<Integer, List<PartitionInfo>> partitionsByNode;
