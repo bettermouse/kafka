@@ -21,6 +21,9 @@ import kafka.utils.Logging
 /**
  * This trait defines a leader elector If the existing leader is dead, this class will handle automatic
  * re-election and if it succeeds, it invokes the leader state change callback
+  * 176/5000
+  * 这个特性定义了一个领导者选举者如果现有领导者已经死亡，
+  * 这个类将处理自动重选，如果成功，它会调用领导者状态变化回调
  */
 trait LeaderElector extends Logging {
   def startup

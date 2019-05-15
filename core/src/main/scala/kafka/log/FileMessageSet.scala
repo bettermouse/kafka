@@ -132,6 +132,7 @@ class FileMessageSet private[kafka](@volatile var file: File,
     val buffer = ByteBuffer.allocate(MessageSet.LogOverhead)
     val size = sizeInBytes()
     while(position + MessageSet.LogOverhead < size) {
+      //rewind不影响上界,只将position设为0
       buffer.rewind()
       channel.read(buffer, position)
       if(buffer.hasRemaining)

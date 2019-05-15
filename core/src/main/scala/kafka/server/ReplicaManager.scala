@@ -55,6 +55,7 @@ case class LogAppendResult(info: LogAppendInfo, error: Option[Throwable] = None)
 
 /*
  * Result metadata of a log read operation on the log
+ * 对日志执行日志读取操作的结果元数据
  * @param info @FetchDataInfo returned by the @Log read
  * @param hw high watermark of the local replica
  * @param readSize amount of data that was read from the log i.e. size of the fetch
@@ -669,7 +670,7 @@ class ReplicaManager(val config: KafkaConfig,
     }
   }
 
-  /*
+  /**
    * Make the current broker to become leader for a given set of partitions by:
    *
    * 1. Stop fetchers for these partitions
@@ -682,7 +683,7 @@ class ReplicaManager(val config: KafkaConfig,
    *
    *  TODO: the above may need to be fixed later
    */
-  private def makeLeaders(controllerId: Int,
+   def makeLeaders(controllerId: Int,
                           epoch: Int,
                           partitionState: Map[Partition, PartitionState],
                           correlationId: Int,

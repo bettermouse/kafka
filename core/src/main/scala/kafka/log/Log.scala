@@ -492,9 +492,9 @@ class Log(val dir: File, //log对应的磁盘目录.此目录下存放了每个l
 
   /**
    * Read messages from the log.
-   *
-   * @param startOffset The offset to begin reading at
-   * @param maxLength The maximum number of bytes to read
+   *从日志中读取消息
+   * @param startOffset The offset to begin reading at 起始偏移量
+   * @param maxLength The maximum number of bytes to read 读取的最大字节
    * @param maxOffset The offset to read up to, exclusive. (i.e. this offset NOT included in the resulting message set)
    *
    * @throws OffsetOutOfRangeException If startOffset is beyond the log end offset or before the base offset of the first segment.
@@ -508,8 +508,9 @@ class Log(val dir: File, //log对应的磁盘目录.此目录下存放了每个l
     val currentNextOffsetMetadata = nextOffsetMetadata
     val next = currentNextOffsetMetadata.messageOffset
     if(startOffset == next)
+      //边界检查
       return FetchDataInfo(currentNextOffsetMetadata, MessageSet.Empty)
-
+    //查找segment
     var entry = segments.floorEntry(startOffset)
 
     // attempt to read beyond the log end offset is an error

@@ -41,7 +41,7 @@ import java.util.concurrent.{ExecutionException, ExecutorService, Executors, Fut
   *
  */
 @threadsafe
-class LogManager(val logDirs: Array[File],
+class LogManager(val logDirs: Array[File],  //log目录的集合,可以指定多个log目录
                  val topicConfigs: Map[String, LogConfig],
                  val defaultConfig: LogConfig,
                  val cleanerConfig: CleanerConfig,
@@ -49,17 +49,21 @@ class LogManager(val logDirs: Array[File],
                  val flushCheckMs: Long,
                  val flushCheckpointMs: Long,
                  val retentionCheckMs: Long,
-                 scheduler: Scheduler,
+                 scheduler: Scheduler, //用于执行周期任务的线程池,与logSegment小节执行flush
+                 //操作的scheduler是一个对象
                  val brokerState: BrokerState,
                  private val time: Time) extends Logging {
   val RecoveryPointCheckpointFile = "recovery-point-offset-checkpoint"
   val LockFile = ".lock"
   val InitialTaskDelayMs = 30*1000
   private val logCreationOrDeletionLock = new Object
+  //管理分区与log之间的关系.
   private val logs = new Pool[TopicAndPartition, Log]()
 
   createAndValidateLogDirs(logDirs)
+  //初始化时加锁
   private val dirLocks = lockLogDirs(logDirs)
+  //
   private val recoveryPointCheckpoints = logDirs.map(dir => (dir, new OffsetCheckpoint(new File(dir, RecoveryPointCheckpointFile)))).toMap
   loadLogs()
 

@@ -24,6 +24,7 @@ import kafka.utils.{SystemTime, threadsafe}
 import scala.math._
 
 @threadsafe
+//环形双向链表
 private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
 
   // TimerTaskList forms a doubly linked cyclic list using a dummy root entry
@@ -33,7 +34,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   private[this] val root = new TimerTaskEntry(null, -1)
   root.next = root
   root.prev = root
-
+  //记录整个 TaskList的超时时间,  与SystemTime.milliseconds比较
   private[this] val expiration = new AtomicLong(-1L)
 
   // Set the bucket's expiration time
@@ -131,7 +132,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   }
 
 }
-
+//TimerTask字段指向了对应的TimerTask任务
 private[timer] class TimerTaskEntry(val timerTask: TimerTask, val expirationMs: Long) extends Ordered[TimerTaskEntry] {
 
   @volatile

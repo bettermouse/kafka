@@ -317,6 +317,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
    * If it encounters any unexpected exception/error while becoming controller, it resigns as the current controller.
    * This ensures another controller election will be triggered and there will always be an actively serving controller
    */
+  //这个controller选举成为了leader
   def onControllerFailover() {
     if(isRunning) {
       info("Broker %d starting become controller state transition".format(config.brokerId))
@@ -1160,6 +1161,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
     finalLeaderIsrAndControllerEpoch
   }
 
+  //IZkStateListener监听zk 连接状态的改变
   class SessionExpirationListener() extends IZkStateListener with Logging {
     this.logIdent = "[SessionExpirationListener on " + config.brokerId + "], "
     @throws(classOf[Exception])
@@ -1170,7 +1172,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
     /**
      * Called after the zookeeper session has expired and a new session has been created. You would have to re-create
      * any ephemeral nodes here.
-     *
+     *重新创建临时节点
      * @throws Exception
      *             On any error.
      */

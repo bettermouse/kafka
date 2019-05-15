@@ -35,6 +35,7 @@ class Replica(val brokerId: Int, // brockId标识该副本所在的broker id
   @volatile private[this] var highWatermarkMetadata: LogOffsetMetadata = new LogOffsetMetadata(initialHighWatermarkValue)
   // the log end offset value, kept in all replicas;
   // for local replica it is the log's end offset, for remote replicas its value is only updated by follower fetch
+  //对于远程副本，它的值仅由follower fetch更新
   @volatile private[this] var logEndOffsetMetadata: LogOffsetMetadata = LogOffsetMetadata.UnknownOffsetMetadata
 
   val topic = partition.topic

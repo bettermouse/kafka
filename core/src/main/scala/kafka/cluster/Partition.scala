@@ -48,7 +48,7 @@ class Partition(val topic: String,  //topic名称
   private val localBrokerId = replicaManager.config.brokerId  //本地blockId
   private val logManager = replicaManager.logManager
   private val zkUtils = replicaManager.zkUtils
-  //AR
+  //AR 维护了该分区全部副本的集合
   private val assignedReplicaMap = new Pool[Int, Replica]
   // The read lock is only required when multiple reads are executed and needs to be in a consistent manner
   private val leaderIsrUpdateLock = new ReentrantReadWriteLock()
@@ -102,14 +102,17 @@ class Partition(val topic: String,  //topic名称
                                            AdminUtils.fetchEntityConfig(zkUtils, ConfigType.Topic, topic))
           //创建ReplicaLocal,如果LOG已经存在,则直接返回.参考LOGMANAGER小节
           val log = logManager.createLog(TopicAndPartition(topic, partitionId), config)
+          //获取指定Log目录对应的 OffsetCheckpoint
           val checkpoint = replicaManager.highWatermarkCheckpoints(log.dir.getParentFile.getAbsolutePath)
           val offsetMap = checkpoint.read
           if (!offsetMap.contains(TopicAndPartition(topic, partitionId)))
             info("No checkpointed highwatermark is found for partition [%s,%d]".format(topic, partitionId))
+          //取最小的值
           val offset = offsetMap.getOrElse(TopicAndPartition(topic, partitionId), 0L).min(log.logEndOffset)
           val localReplica = new Replica(replicaId, this, time, offset, Some(log))
           addReplicaIfNotExists(localReplica)
         } else {
+          //远程直接创建.
           val remoteReplica = new Replica(replicaId, this, time)
           addReplicaIfNotExists(remoteReplica)
         }
@@ -173,34 +176,49 @@ class Partition(val topic: String,  //topic名称
    * Make the local replica the leader by resetting LogEndOffset for remote replicas (there could be old LogEndOffset
    * from the time when this broker was the leader last time) and setting the new leader and ISR.
    * If the leader replica id does not change, return false to indicate the replica manager.
+    *
+    * 通过为remote replica重置LogEndOffset 使本地副本成为leader
+    * (从上次此代理是领导者时可能存在旧的LogEndOffset).且设置新的leader和isr
+    * 如果leader replica id 没有变化,返回false来指示复制管理器。
    */
   def makeLeader(controllerId: Int, partitionStateInfo: PartitionState, correlationId: Int): Boolean = {
+    //加锁
     val (leaderHWIncremented, isNewLeader) = inWriteLock(leaderIsrUpdateLock) {
+      //所有副本
       val allReplicas = partitionStateInfo.replicas.asScala.map(_.toInt)
       // record the epoch of the controller that made the leadership decision. This is useful while updating the isr
       // to maintain the decision maker controller's epoch in the zookeeper path
       controllerEpoch = partitionStateInfo.controllerEpoch
       // add replicas that are new
+      //创建副本对应的replica对象
       allReplicas.foreach(replica => getOrCreateReplica(replica))
+      //获取isr集合
       val newInSyncReplicas = partitionStateInfo.isr.asScala.map(r => getOrCreateReplica(r)).toSet
       // remove assigned replicas that have been removed by the controller
+      //删除已由controller删除的已分配副本
       (assignedReplicas().map(_.brokerId) -- allReplicas).foreach(removeReplica(_))
+      //更新partition
       inSyncReplicas = newInSyncReplicas
       leaderEpoch = partitionStateInfo.leaderEpoch
       zkVersion = partitionStateInfo.zkVersion
       val isNewLeader =
         if (leaderReplicaIdOpt.isDefined && leaderReplicaIdOpt.get == localBrokerId) {
+          //leader的broker并没有变化,为false
           false
         } else {
           leaderReplicaIdOpt = Some(localBrokerId)
           true
         }
+      //得到主副本
       val leaderReplica = getReplica().get
       // we may need to increment high watermark since ISR could be down to 1
+      //我们可能需要增加高水印，因为ISR可以降到1
       if (isNewLeader) {
         // construct the high watermark metadata for the new leader replica
+        //为新的领导者副本构建高水印元数据
         leaderReplica.convertHWToLocalOffsetMetadata()
         // reset log end offset for remote replicas
+        //重置远程副本的日志结束偏移量
         assignedReplicas.filter(_.brokerId != localBrokerId).foreach(_.updateLogReadResult(LogReadResult.UnknownLogReadResult))
       }
       (maybeIncrementLeaderHW(leaderReplica), isNewLeader)

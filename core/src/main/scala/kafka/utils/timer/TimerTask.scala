@@ -17,7 +17,7 @@
 package kafka.utils.timer
 //链表中的每一项表示的都是定时任务项TimerTaskEntry其中封装了真正的定时任务TimerTask。
 trait TimerTask extends Runnable {
-
+  //记录任务的延迟时间
   val delayMs: Long // timestamp in millisecond
 
   private[this] var timerTaskEntry: TimerTaskEntry = null

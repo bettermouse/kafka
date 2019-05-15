@@ -184,7 +184,8 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         /* start scheduler */
         kafkaScheduler.startup()
 
-        /* setup zookeeper */
+        /* setup zookeeper
+        * 初始化zookeeper*/
         zkUtils = initZk()
 
         /* start log manager */
@@ -299,7 +300,6 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
       info("Created zookeeper path " + chroot)
       zkClientForChrootCreation.zkClient.close()
     }
-
     val zkUtils = ZkUtils(config.zkConnect,
                           config.zkSessionTimeoutMs,
                           config.zkConnectionTimeoutMs,

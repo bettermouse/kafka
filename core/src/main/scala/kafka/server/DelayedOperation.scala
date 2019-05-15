@@ -48,7 +48,7 @@ import com.yammer.metrics.core.Gauge
  * A subclass of DelayedOperation needs to provide an implementation of both onComplete() and tryComplete().
  */
 abstract class DelayedOperation(override val delayMs: Long) extends TimerTask with Logging {
-
+  //是否完成
   private val completed = new AtomicBoolean(false)
 
   /*
@@ -66,7 +66,9 @@ abstract class DelayedOperation(override val delayMs: Long) extends TimerTask wi
   def forceComplete(): Boolean = {
     if (completed.compareAndSet(false, true)) {
       // cancel the timeout timer
+      //取消 超时计时器
       cancel()
+      //完成任务
       onComplete()
       true
     } else {
@@ -87,6 +89,7 @@ abstract class DelayedOperation(override val delayMs: Long) extends TimerTask wi
   /**
    * Process for completing an operation; This function needs to be defined
    * in subclasses and will be called exactly once in forceComplete()
+    * 具体业务逻辑
    */
   def onComplete(): Unit
 
@@ -101,6 +104,7 @@ abstract class DelayedOperation(override val delayMs: Long) extends TimerTask wi
 
   /*
    * run() method defines a task that is executed on timeout
+   * 超时的时候执行
    */
   override def run(): Unit = {
     if (forceComplete())
