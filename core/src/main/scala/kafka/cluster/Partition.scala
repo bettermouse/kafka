@@ -260,6 +260,7 @@ class Partition(val topic: String,  //topic名称
 
   /**
    * Update the log end offset of a certain replica of this partition
+    * 更新这个分区 某一分片的 log end offset
    */
   def updateReplicaLogReadResult(replicaId: Int, logReadResult: LogReadResult) {
     getReplica(replicaId) match {
@@ -310,6 +311,8 @@ class Partition(val topic: String,  //topic名称
 
           // check if the HW of the partition can now be incremented
           // since the replica maybe now be in the ISR and its LEO has just incremented
+          //检查是否 分区的hw可以被增加
+          //因为replica 可能现在在isr 而且它的leo刚才已经增加了
           maybeIncrementLeaderHW(leaderReplica)
 
         case None => false // nothing to do if no longer leader
@@ -377,8 +380,11 @@ class Partition(val topic: String,  //topic名称
    * since all callers of this private API acquire that lock
    */
   private def maybeIncrementLeaderHW(leaderReplica: Replica): Boolean = {
+    //所有的 leo
     val allLogEndOffsets = inSyncReplicas.map(_.logEndOffset)
+    //找到最小的
     val newHighWatermark = allLogEndOffsets.min(new LogOffsetMetadata.OffsetOrdering)
+    //旧的
     val oldHighWatermark = leaderReplica.highWatermark
     if (oldHighWatermark.messageOffset < newHighWatermark.messageOffset || oldHighWatermark.onOlderSegment(newHighWatermark)) {
       leaderReplica.highWatermark = newHighWatermark

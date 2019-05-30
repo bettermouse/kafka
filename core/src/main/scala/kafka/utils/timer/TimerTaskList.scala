@@ -30,7 +30,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   // TimerTaskList forms a doubly linked cyclic list using a dummy root entry
   // root.next points to the head
   // root.prev points to the tail
-
+  //TimerTaskList使用 哨兵 形成双向链接循环列表
   private[this] val root = new TimerTaskEntry(null, -1)
   root.next = root
   root.prev = root
@@ -39,16 +39,19 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
 
   // Set the bucket's expiration time
   // Returns true if the expiration time is changed
+  //设置桶的过期时间,返回true 如果过期时间改变了
   def setExpiration(expirationMs: Long): Boolean = {
     expiration.getAndSet(expirationMs) != expirationMs
   }
 
   // Get the bucket's expiration time
+  //得到过期时间
   def getExpiration(): Long = {
     expiration.get()
   }
 
   // Apply the supplied function to each of tasks in this list
+  //将提供的函数应用于此列表中的每个任务
   def foreach(f: (TimerTask)=>Unit): Unit = {
     synchronized {
       var entry = root.next
@@ -63,18 +66,23 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   }
 
   // Add a timer task entry to this list
+  //添加一个 timer task到这个List
   def add(timerTaskEntry: TimerTaskEntry): Unit = {
     var done = false
     while (!done) {
       // Remove the timer task entry if it is already in any other list
       // We do this outside of the sync block below to avoid deadlocking.
       // We may retry until timerTaskEntry.list becomes null.
+      //删除timer task entry（如果它已在任何其他列表中）
+      // 我们在下面的同步块之外执行此操作以避免死锁。
+      // 我们可能会重试，直到timerTaskEntry.list变为null。
       timerTaskEntry.remove()
 
       synchronized {
         timerTaskEntry.synchronized {
           if (timerTaskEntry.list == null) {
             // put the timer task entry to the end of the list. (root.prev points to the tail entry)
+            //把这个 timer task entry放到 list的结尾
             val tail = root.prev
             timerTaskEntry.next = root
             timerTaskEntry.prev = tail
@@ -90,6 +98,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   }
 
   // Remove the specified timer task entry from this list
+  //从这个list中移除给定的timer task entry
   def remove(timerTaskEntry: TimerTaskEntry): Unit = {
     synchronized {
       timerTaskEntry.synchronized {
@@ -106,6 +115,7 @@ private[timer] class TimerTaskList(taskCounter: AtomicInteger) extends Delayed {
   }
 
   // Remove all task entries and apply the supplied function to each of them
+  //移除所有的 task entries ,应用提供的函数到它们中的每一个
   def flush(f: (TimerTaskEntry)=>Unit): Unit = {
     synchronized {
       var head = root.next
@@ -142,6 +152,8 @@ private[timer] class TimerTaskEntry(val timerTask: TimerTask, val expirationMs: 
 
   // if this timerTask is already held by an existing timer task entry,
   // setTimerTaskEntry will remove it.
+  // 如果timerTask 已经被an existing timer task entry持有
+  // setTimerTaskEntry将移除它
   if (timerTask != null) timerTask.setTimerTaskEntry(this)
 
   def cancelled: Boolean = {
@@ -149,10 +161,14 @@ private[timer] class TimerTaskEntry(val timerTask: TimerTask, val expirationMs: 
   }
 
   def remove(): Unit = {
+    //找到对应的list 移除
     var currentList = list
     // If remove is called when another thread is moving the entry from a task entry list to another,
     // this may fail to remove the entry due to the change of value of list. Thus, we retry until the list becomes null.
     // In a rare case, this thread sees null and exits the loop, but the other thread insert the entry to another list later.
+    //当一个线程正在移动这个entry从一个task entry list到另一个
+    //由于list值的改变  这可能失败(移除这个entry) ,所以我们将重试直到list变成null
+    //在极少数情况下，此线程看到null并退出循环，但另一个线程稍后将该条目插入另一个列表。
     while (currentList != null) {
       currentList.remove(this)
       currentList = list

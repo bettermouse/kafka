@@ -50,6 +50,7 @@ case class FetchMetadata(fetchMinBytes: Int,
 /**
  * A delayed fetch operation that can be created by the replica manager and watched
  * in the fetch operation purgatory
+  * 来自消费者或follower副本的 Fetch request
  */
 class DelayedFetch(delayMs: Long,
                    fetchMetadata: FetchMetadata,
@@ -126,6 +127,7 @@ class DelayedFetch(delayMs: Long,
 
   /**
    * Upon completion, read whatever data is available and pass to the complete callback
+    * 完成后，读取可用的任何数据并传递给完整的回调
    */
   override def onComplete() {
     val logReadResults = replicaManager.readFromLocalLog(fetchMetadata.fetchOnlyLeader,

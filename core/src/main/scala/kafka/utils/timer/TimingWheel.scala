@@ -21,7 +21,7 @@ import kafka.utils.nonthreadsafe
 import java.util.concurrent.DelayQueue
 import java.util.concurrent.atomic.AtomicInteger
 
-/*
+/**
  * Hierarchical Timing Wheels
  *
  * A simple timing wheel is a circular list of buckets of timer tasks. Let u be the time unit.
@@ -105,6 +105,7 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
   //桶   数组的每个元素是TimerTaskList
   private[this] val buckets = Array.tabulate[TimerTaskList](wheelSize) { _ => new TimerTaskList(taskCounter) }
 
+  //四舍五入到tickMs的倍数
   private[this] var currentTime = startMs - (startMs % tickMs) // rounding down to multiple of tickMs
 
   // overflowWheel can potentially be updated and read by two concurrent threads through add().
@@ -127,7 +128,7 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
     }
   }
 
-  ////向时间轮中添加定时任务的功能,它同时也会检测待添加的任务是否已经到期
+  //向时间轮中添加定时任务的功能,它同时也会检测待添加的任务是否已经到期
   def add(timerTaskEntry: TimerTaskEntry): Boolean = {
     //过期时间
     val expiration = timerTaskEntry.expirationMs
@@ -147,6 +148,7 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
       bucket.add(timerTaskEntry)
 
       // Set the bucket expiration time
+      //设置桶的过期时间
       if (bucket.setExpiration(virtualId * tickMs)) {
         // The bucket needs to be enqueued because it was an expired bucket
         // We only need to enqueue the bucket when its expiration time has changed, i.e. the wheel has advanced

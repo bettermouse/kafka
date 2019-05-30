@@ -46,12 +46,25 @@ import com.yammer.metrics.core.Gauge
  * forceComplete().
  *
  * A subclass of DelayedOperation needs to provide an implementation of both onComplete() and tryComplete().
+  * 一个操作,它的处理需要被延迟 最多给定的delayMs.例如delayed produce operation可能正在等待指定数量的确认;
+  * a delayed fetch operation  正在等待给定的字节数累积。
+  *
+  *  完成延迟操作的逻辑在onComplete（）中定义，并且将被调用一次。
+  *  一旦操作完成，isCompleted（）将返回true。
+  *   onComplete() 可以被forceComplete()触发 ,
+  *   可以由forceComplete（）强制触发，如果操作尚未完成，
+  *   则强制在delayMs之后调用onComplete（）
+  *
+  *   或者tryComplete（），它首先检查操作是否可以立即完成，如果是，则调用forceComplete（）。
+  *   DelayedOperation的子类需要提供onComplete（）和tryComplete（）的实现。
+  *
+  *
  */
 abstract class DelayedOperation(override val delayMs: Long) extends TimerTask with Logging {
   //是否完成
   private val completed = new AtomicBoolean(false)
 
-  /*
+  /**
    * Force completing the delayed operation, if not already completed.
    * This function can be triggered when
    *
@@ -62,6 +75,14 @@ abstract class DelayedOperation(override val delayMs: Long) extends TimerTask wi
    * concurrent threads can try to complete the same operation, but only
    * the first thread will succeed in completing the operation and return
    * true, others will still return false
+    *
+    * 如果现在没玩成的话 强制执行延迟操作.这个函数可以被触发当
+    * 1  这个操作已经被验证将在tryComplete（）中可以完成
+    * 2  这个操作已经过期了,因此 需要立刻被完成
+    *
+    * 返回true 如果这个操作被这个调用者完成
+    * 注意 并行线程可以尝试完成相同的操作但是仅第一个线程将成功 完成这个操作返回
+    * true其它的将返回false
    */
   def forceComplete(): Boolean = {
     if (completed.compareAndSet(false, true)) {
@@ -93,12 +114,17 @@ abstract class DelayedOperation(override val delayMs: Long) extends TimerTask wi
    */
   def onComplete(): Unit
 
-  /*
+  /**
    * Try to complete the delayed operation by first checking if the operation
    * can be completed by now. If yes execute the completion logic by calling
    * forceComplete() and return true iff forceComplete returns true; otherwise return false
    *
    * This function needs to be defined in subclasses
+   * 尝试完成延迟操作 通过首先检查这个操作是否现在可以被完成.
+    * 如果是通过调用forceComplete() 执行完成逻辑,如果forceComplete返回true
+    * 返回true.否则返回失败
+    *
+    *
    */
   def tryComplete(): Boolean
 
@@ -125,7 +151,9 @@ object DelayedOperationPurgatory {
 
 /**
  * A helper purgatory class for bookkeeping delayed operations with a timeout, and expiring timed out operations.
-  * 一个助手炼狱类，用于记录带有超时的延迟操作和过期超时操作。
+  * 一个助手炼狱类，用于簿记的辅助炼狱类延迟了超时操作，并使超时操作到期。
+  * 管理DelayedOperation 处理到期的DelayedOperation功能
+  *
  */
 class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
                                                        timeoutTimer: Timer,
@@ -135,6 +163,19 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
         extends Logging with KafkaMetricsGroup {
 
   /* a list of operation watching keys */
+  /*
+  key表示的是watchers中DelayedOperation关心的对象,value是watchers类型的对象.
+  watchers是DelayedOperationPurgatory内部类,表示一个DelayedOperation的集合.底层使用list实现
+
+  TopicPartitionOperationKey 是 delayed-produce关心的对象,表示某个topic的分区
+  *
+  * 每当leader副本收到follower副本对test-0的 fetchRequest时,都会检查test-0对应的watchers
+  * 中的 operation是否满足了执行条件.如果满足执行条件执行条件,就会执行DelayedOperation
+  * 向客户端发送response
+  *
+  * 最终DelayedOperation(DelayedProduce) 会因为到期或满足执行条件而被执行
+  *
+  * */
   private val watchersForKey = new Pool[Any, Watchers](Some((key: Any) => new Watchers(key)))
 
   private val removeWatchersLock = new ReentrantReadWriteLock()
@@ -142,7 +183,8 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
   // the number of estimated total operations in the purgatory
   private[this] val estimatedTotalOperations = new AtomicInteger(0)
 
-  /* background thread expiring operations that have timed out */
+  /* background thread expiring operations that have timed out
+   * 已经超时的 到期操作的后台线程 */
   private val expirationReaper = new ExpiredOperationReaper()
 
   private val metricsTags = Map("delayedOperation" -> purgatoryName)
@@ -307,6 +349,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
     }
 
     // traverse the list and try to complete some watched elements
+    // 遍历这个list 尝试完成一些 观察到的事件
     def tryCompleteWatched(): Int = {
 
       var completed = 0
@@ -316,14 +359,17 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
           val curr = iter.next()
           if (curr.isCompleted) {
             // another thread has completed this operation, just remove it
+            //其它线程已经完成了这个操作,移除
             iter.remove()
+            //如果尝试完成成功
           } else if (curr synchronized curr.tryComplete()) {
             completed += 1
+            //移除
             iter.remove()
           }
         }
       }
-
+       //如果队列的长度为0,移除这个操作
       if (operations.size == 0)
         removeKeyIfEmpty(key, this)
 
@@ -357,6 +403,8 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
     // Trigger a purge if the number of completed but still being watched operations is larger than
     // the purge threshold. That number is computed by the difference btw the estimated total number of
     // operations and the number of pending delayed operations.
+    //触发一个清理,如果完成的但仍然被观察的操作大于清洗threshold
+    //该数字是通过估计的总操作数和未决的延迟操作数的差来计算的。
     if (estimatedTotalOperations.get - delayed > purgeInterval) {
       // now set estimatedTotalOperations to delayed (the number of pending operations) since we are going to
       // clean up watchers. Note that, if more operations are completed during the clean up, we may end up with
@@ -370,6 +418,8 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
 
   /**
    * A background reaper to expire delayed operations that have timed out
+    * 1 推动时间轮
+    * 2 清理完成的delay operation
    */
   private class ExpiredOperationReaper extends ShutdownableThread(
     "ExpirationReaper-%d".format(brokerId),

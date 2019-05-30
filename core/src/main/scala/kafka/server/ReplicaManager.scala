@@ -106,17 +106,26 @@ class ReplicaManager(val config: KafkaConfig,
                      time: Time,
                      jTime: JTime,
                      val zkUtils: ZkUtils,
-                     scheduler: Scheduler,
+                     scheduler: Scheduler, //执行3个定时任务
+                     //LogManager对象,对分区的读写操作都委托给
+                     //底层的日志存储子系统
                      val logManager: LogManager,
                      val isShuttingDown: AtomicBoolean,
                      threadNamePrefix: Option[String] = None) extends Logging with KafkaMetricsGroup {
-  /* epoch of the controller that last changed the leader */
+  /* epoch of the controller that last changed the leader
+   * 记录kafkaController的年代信息.当重新选举controller leader时该字段会递增
+    * 之后,在replicaManager处理来自kafkaController的请求时,会先检测请求中携带的年代信息是否
+    * 等于controllerEpoch字段的值,这就避免接收旧controllerLeader发送的请求*/
   @volatile var controllerEpoch: Int = KafkaController.InitialControllerEpoch - 1
+  //当前的broker id,主要用于查找local replica
   private val localBrokerId = config.brokerId
+  //
   private val allPartitions = new Pool[(String, Int), Partition](valueFactory = Some { case (t, p) =>
     new Partition(t, p, time, this)
   })
   private val replicaStateChangeLock = new Object
+  //在ReplicaManager中管理了多个ReplicaFetcherThread
+  //ReplicaFetcherThread会向Leader副本发送消息来获取消息,实现leader follower的同步
   val replicaFetcherManager = new ReplicaFetcherManager(config, this, metrics, jTime, threadNamePrefix)
   private val highWatermarkCheckPointThreadStarted = new AtomicBoolean(false)
   val highWatermarkCheckpoints = config.logDirs.map(dir => (new File(dir).getAbsolutePath, new OffsetCheckpoint(new File(dir, ReplicaManager.HighWatermarkFilename)))).toMap
@@ -331,22 +340,26 @@ class ReplicaManager(val config: KafkaConfig,
 
     if (isValidRequiredAcks(requiredAcks)) {
       val sTime = SystemTime.milliseconds
+      //将消息追加到log,同时还会检测delayedFetchPurgatory
       val localProduceResults = appendToLocalLog(internalTopicsAllowed, messagesPerPartition, requiredAcks)
       debug("Produce to local log in %d ms".format(SystemTime.milliseconds - sTime))
-
+      //对追加结果进行转换
       val produceStatus = localProduceResults.map { case (topicPartition, result) =>
         topicPartition ->
                 ProducePartitionStatus(
                   result.info.lastOffset + 1, // required offset
+                  //记录错误码
                   new PartitionResponse(result.errorCode, result.info.firstOffset, result.info.timestamp)) // response status
       }
-
+      //检查是否要生成 delayedProduce
       if (delayedRequestRequired(requiredAcks, messagesPerPartition, localProduceResults)) {
         // create delayed produce operation
         val produceMetadata = ProduceMetadata(requiredAcks, produceStatus)
+        //生成 delayedProduce
         val delayedProduce = new DelayedProduce(timeout, produceMetadata, this, responseCallback)
 
         // create a list of (topic, partition) pairs to use as keys for this delayed produce operation
+        //生成  producerRequestKeys
         val producerRequestKeys = messagesPerPartition.keys.map(new TopicPartitionOperationKey(_)).toSeq
 
         // try to complete the request immediately, otherwise put it into the purgatory
@@ -458,26 +471,39 @@ class ReplicaManager(val config: KafkaConfig,
   /**
    * Fetch messages from the leader replica, and wait until enough data can be fetched and return;
    * the callback function will be triggered either when timeout or required fetch info is satisfied
+    * 从leader分片抓取消息,等待直到足够的数据被抓取然后返回
+    * 这个回调函数将被触发 要么 超时,或者需要抓取的消息被满足
    */
   def fetchMessages(timeout: Long,
                     replicaId: Int,
                     fetchMinBytes: Int,
                     fetchInfo: immutable.Map[TopicAndPartition, PartitionFetchInfo],
                     responseCallback: Map[TopicAndPartition, FetchResponsePartitionData] => Unit) {
+    //只有Follower副本才有replicaId,而消费者是没有的,消费者的replicaId始终是-1
     val isFromFollower = replicaId >= 0
     val fetchOnlyFromLeader: Boolean = replicaId != Request.DebuggingConsumerId
     val fetchOnlyCommitted: Boolean = ! Request.isValidBrokerId(replicaId)
 
     // read from local logs
+    //从本地log中读取消息
     val logReadResults = readFromLocalLog(fetchOnlyFromLeader, fetchOnlyCommitted, fetchInfo)
 
     // if the fetch comes from the follower,
     // update its corresponding log end offset
+    //检查消息是否来自follower
     if(Request.isValidBrokerId(replicaId))
+      //如果是来自follower
+      // 1 .在leader中维护了follower副本的各种状态,这里会更新follower副本的状态
+      //例如 更新leo,更新lastCaugthUptimeMsunderlying
+      //2 检测是否需要对Isr集合进行扩张,如果isr集合发生变化,则将新的isr集合保留到zookeeper中
+      //3 检查是否后移leader的hw
+      //4 检查delayedProducePurgatory中的相关key对应的DelayProduce满足条件则执行完成
       updateFollowerLogReadResults(replicaId, logReadResults)
 
     // check if this fetch request can be satisfied right away
+    //统计字节数
     val bytesReadable = logReadResults.values.map(_.info.messageSet.sizeInBytes).sum
+    //统计是否发生了异常
     val errorReadingData = logReadResults.values.foldLeft(false) ((errorIncurred, readResult) =>
       errorIncurred || (readResult.errorCode != Errors.NONE.code))
 
@@ -485,6 +511,10 @@ class ReplicaManager(val config: KafkaConfig,
     //                        2) fetch request does not require any data
     //                        3) has enough data to respond
     //                        4) some error happens while reading data
+    // 1 fetch request不想等
+    // 2 fetch request不需要任何数据
+    // 3 有足够数据响应
+    // 4 当读取数据时发生了一些异常
     if(timeout <= 0 || fetchInfo.size <= 0 || bytesReadable >= fetchMinBytes || errorReadingData) {
       val fetchPartitionData = logReadResults.mapValues(result =>
         FetchResponsePartitionData(result.errorCode, result.hw, result.info.messageSet))
@@ -509,9 +539,11 @@ class ReplicaManager(val config: KafkaConfig,
 
   /**
    * Read from a single topic/partition at the given offset upto maxSize bytes
+    * 从给定偏移量的单个主题/分区读取到maxSize字节
    */
-  def readFromLocalLog(fetchOnlyFromLeader: Boolean,
-                       readOnlyCommitted: Boolean,
+  def readFromLocalLog(fetchOnlyFromLeader: Boolean,//是否只读取leader副本的消息 debug才为false
+                       readOnlyCommitted: Boolean,//只读取hw之前的消息 消息者为ture
+                      //每个分区读取的起始offset位置和最大字节数
                        readPartitionInfo: Map[TopicAndPartition, PartitionFetchInfo]): Map[TopicAndPartition, LogReadResult] = {
 
     readPartitionInfo.map { case (TopicAndPartition(topic, partition), PartitionFetchInfo(offset, fetchSize)) =>
@@ -543,6 +575,7 @@ class ReplicaManager(val config: KafkaConfig,
           val initialLogEndOffset = localReplica.logEndOffset
           val logReadInfo = localReplica.log match {
             case Some(log) =>
+              //每个分区读取的起始offset位置和最大字节数
               log.read(offset, fetchSize, maxOffsetOpt)
             case None =>
               error("Leader for partition [%s,%d] does not have a local log".format(topic, partition))

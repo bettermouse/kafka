@@ -81,6 +81,7 @@ class SystemTimer(executorName: String,
   def add(timerTask: TimerTask): Unit = {
     readLock.lock()
     try {
+      //添加一个 TimerTaskEntry
       addTimerTaskEntry(new TimerTaskEntry(timerTask, timerTask.delayMs + System.currentTimeMillis()))
     } finally {
       readLock.unlock()
@@ -88,18 +89,23 @@ class SystemTimer(executorName: String,
   }
 
   private def addTimerTaskEntry(timerTaskEntry: TimerTaskEntry): Unit = {
+
     if (!timingWheel.add(timerTaskEntry)) {
+      // //timingWheel.add(timerTaskEntry)返回false表示到执行时间或者取消了
       // Already expired or cancelled
       if (!timerTaskEntry.cancelled)
+        //执行没有取消的
         taskExecutor.submit(timerTaskEntry.timerTask)
     }
   }
 
   private[this] val reinsert = (timerTaskEntry: TimerTaskEntry) => addTimerTaskEntry(timerTaskEntry)
 
-  /*
+  /**
    * Advances the clock if there is an expired bucket. If there isn't any expired bucket when called,
    * waits up to timeoutMs before giving up.
+    * 如果存在过期的存储桶，则提前计时。
+    * 如果在调用时没有任何过期的存储桶，则在放弃之前等待timeoutMs。
    */
   def advanceClock(timeoutMs: Long): Boolean = {
     var bucket = delayQueue.poll(timeoutMs, TimeUnit.MILLISECONDS)
